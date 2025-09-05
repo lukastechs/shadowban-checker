@@ -10,11 +10,9 @@ const X_BEARER_TOKEN = process.env.X_BEARER_TOKEN;
 const RECAPTCHA_SECRET_KEY = process.env.RECAPTCHA_SECRET_KEY;
 
 app.use(cors());
-app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
-app.set('view engine', 'ejs');
 
-// From attached code: Account age calculations
+// Account age calculations (from x-backend.js)
 function calculateAccountAge(createdAt) {
   const now = new Date();
   const created = new Date(createdAt);
@@ -32,7 +30,7 @@ function calculateAgeDays(createdAt) {
   return Math.floor(diffMs / (1000 * 60 * 60 * 24));
 }
 
-// Fetch user details (integrated from attached code)
+// Fetch user details
 async function fetchUserDetails(username) {
   try {
     const response = await axios.get(
@@ -69,12 +67,12 @@ async function checkSearchBanAPI(username) {
     return tweets.length > 0 ? 'No search ban' : 'Search ban detected';
   } catch (error) {
     console.error('API error (search ban):', error.response?.status);
-    return null; // Fallback to scraping
+    return null;
   }
 }
 
 async function checkSearchBanScraping(username) {
-  const browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox'] }); // Added --no-sandbox for Render compatibility
+  const browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox'] });
   const page = await browser.newPage();
   try {
     await page.goto(`https://x.com/${username}`, { waitUntil: 'networkidle2' });
@@ -163,12 +161,14 @@ async function checkReplyDeboost(username) {
   }
 }
 
+// Root endpoint
 app.get('/', (req, res) => {
-  res.render('index');
+  res.json({ message: 'X Shadow Ban Checker API is running' });
 });
 
+// Check endpoint (POST for PHP frontend with reCAPTCHA)
 app.post('/check', async (req, res) => {
-  // Verify reCAPTCHA (from attached code)
+  // Verify reCAPTCHA
   const recaptchaResponse = req.body.recaptcha;
   if (!recaptchaResponse) return res.status(400).json({ error: 'reCAPTCHA required' });
   try {
@@ -184,16 +184,32 @@ app.post('/check', async (req, res) => {
   const username = req.body.username.replace(/^@/, '');
   const userDetails = await fetchUserDetails(username);
   const results = {
-    ...userDetails, // Add user details to results
+    username,
+    ...userDetails,
     search_ban: await checkSearchBanAPI(username) || await checkSearchBanScraping(username),
     suggestion_ban: await checkSearchSuggestionBanAPI(username) || await checkSearchSuggestionBanScraping(username),
     ghost_ban: await checkGhostBan(username),
     reply_deboost: await checkReplyDeboost(username),
   };
-  res.render('results', { results, username }); // Or res.json(results) if PHP frontend uses API
+  res.json({ results });
 });
 
-// Health check (from attached code)
+// Check endpoint (GET for testing, no reCAPTCHA)
+app.get('/check/:username', async (req, res) => {
+  const username = req.params.username.replace(/^@/, '');
+  const userDetails = await fetchUserDetails(username);
+  const results = {
+    username,
+    ...userDetails,
+    search_ban: await checkSearchBanAPI(username) || await checkSearchBanScraping(username),
+    suggestion_ban: await checkSearchSuggestionBanAPI(username) || await checkSearchSuggestionBanScraping(username),
+    ghost_ban: await checkGhostBan(username),
+    reply_deboost: await checkReplyDeboost(username),
+  };
+  res.json({ results });
+});
+
+// Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'healthy', timestamp: new Date().toISOString() });
 });
