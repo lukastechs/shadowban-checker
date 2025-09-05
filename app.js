@@ -12,44 +12,20 @@ const RECAPTCHA_SECRET_KEY = process.env.RECAPTCHA_SECRET_KEY;
 app.use(cors());
 app.use(express.json());
 
-// Account age calculations (from x-backend.js)
-function calculateAccountAge(createdAt) {
-  const now = new Date();
-  const created = new Date(createdAt);
-  const diffMs = now - created;
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-  const years = Math.floor(diffDays / 365);
-  const months = Math.floor((diffDays % 365) / 30);
-  return years > 0 ? `${years} years, ${months} months` : `${months} months`;
-}
-
-function calculateAgeDays(createdAt) {
-  const now = new Date();
-  const created = new Date(createdAt);
-  const diffMs = now - created;
-  return Math.floor(diffMs / (1000 * 60 * 60 * 24));
-}
-
-// Fetch user details
+// Fetch user details (only requested fields)
 async function fetchUserDetails(username) {
   try {
     const response = await axios.get(
-      `https://api.x.com/2/users/by/username/${username}?user.fields=public_metrics,created_at,profile_image_url,location,description,verified,verified_type`,
+      `https://api.x.com/2/users/by/username/${username}?user.fields=public_metrics,profile_image_url,description,name`,
       { headers: { Authorization: `Bearer ${X_BEARER_TOKEN}` } }
     );
     const user = response.data.data;
     if (!user) throw new Error('User not found');
     return {
+      username: user.username || username,
       nickname: user.name || 'N/A',
-      estimated_creation_date: user.created_at ? new Date(user.created_at).toLocaleDateString() : 'N/A',
-      account_age: user.created_at ? calculateAccountAge(user.created_at) : 'N/A',
-      age_days: user.created_at ? calculateAgeDays(user.created_at) : 0,
       followers: user.public_metrics?.followers_count || 0,
-      total_likes: user.public_metrics?.like_count || 0,
-      verified: user.verified ? 'Yes' : 'No',
-      verified_type: user.verified_type || 'N/A',
       description: user.description || 'N/A',
-      region: user.location || 'N/A',
       avatar: user.profile_image_url || 'https://via.placeholder.com/50',
     };
   } catch (error) {
@@ -168,7 +144,6 @@ app.get('/', (req, res) => {
 
 // Check endpoint (POST for PHP frontend with reCAPTCHA)
 app.post('/check', async (req, res) => {
-  // Verify reCAPTCHA
   const recaptchaResponse = req.body.recaptcha;
   if (!recaptchaResponse) return res.status(400).json({ error: 'reCAPTCHA required' });
   try {
@@ -184,7 +159,6 @@ app.post('/check', async (req, res) => {
   const username = req.body.username.replace(/^@/, '');
   const userDetails = await fetchUserDetails(username);
   const results = {
-    username,
     ...userDetails,
     search_ban: await checkSearchBanAPI(username) || await checkSearchBanScraping(username),
     suggestion_ban: await checkSearchSuggestionBanAPI(username) || await checkSearchSuggestionBanScraping(username),
@@ -199,7 +173,6 @@ app.get('/check/:username', async (req, res) => {
   const username = req.params.username.replace(/^@/, '');
   const userDetails = await fetchUserDetails(username);
   const results = {
-    username,
     ...userDetails,
     search_ban: await checkSearchBanAPI(username) || await checkSearchBanScraping(username),
     suggestion_ban: await checkSearchSuggestionBanAPI(username) || await checkSearchSuggestionBanScraping(username),
