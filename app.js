@@ -25,6 +25,11 @@ let puppeteerAvailable = true;
   }
 })();
 
+/ Update launch in scraping functions to use cacheDirectory
+async function checkSearchBanScraping(username) {
+  if (!puppeteerAvailable) return 'Scraping unavailable (Puppeteer failed)';
+  const browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox'], cacheDirectory: PUPPETEER_CACHE_DIR });
+
 // Fetch user details
 async function fetchUserDetails(username) {
   try {
