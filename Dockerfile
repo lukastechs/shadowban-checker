@@ -47,6 +47,9 @@ RUN apt-get update && apt-get install -y \
     xdg-utils \
  && rm -rf /var/lib/apt/lists/*
 
+# Install Chromium for Puppeteer
+RUN npx puppeteer browsers install chrome
+
 # Copy application code
 COPY . .
 
