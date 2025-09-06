@@ -9,7 +9,6 @@ const port = process.env.PORT || 3000;
 const X_BEARER_TOKEN = process.env.X_BEARER_TOKEN;
 const RECAPTCHA_SECRET_KEY = process.env.RECAPTCHA_SECRET_KEY;
 const PUPPETEER_CACHE_DIR = process.env.PUPPETEER_CACHE_DIR;
-const PUPPETEER_EXECUTABLE_PATH = process.env.PUPPETEER_EXECUTABLE_PATH;
 
 app.use(cors());
 app.use(express.json());
@@ -63,11 +62,7 @@ async function checkSearchBanAPI(username) {
 
 async function checkSearchBanScraping(username) {
   if (!puppeteerAvailable) return 'Scraping unavailable (Puppeteer failed)';
-  const browser = await puppeteer.launch({
-    headless: 'new',
-    args: ['--no-sandbox'],
-    executablePath: PUPPETEER_EXECUTABLE_PATH
-  });
+  const browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox'] });
   const page = await browser.newPage();
   try {
     await page.goto(`https://x.com/${username}`, { waitUntil: 'networkidle2' });
@@ -98,11 +93,7 @@ async function checkSearchSuggestionBanAPI(username) {
 
 async function checkSearchSuggestionBanScraping(username) {
   if (!puppeteerAvailable) return 'Scraping unavailable (Puppeteer failed)';
-  const browser = await puppeteer.launch({
-    headless: 'new',
-    args: ['--no-sandbox'],
-    executablePath: PUPPETEER_EXECUTABLE_PATH
-  });
+  const browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox'] });
   const page = await browser.newPage();
   try {
     await page.goto('https://x.com/explore', { waitUntil: 'networkidle2' });
@@ -121,11 +112,7 @@ async function checkSearchSuggestionBanScraping(username) {
 
 async function checkGhostBan(username) {
   if (!puppeteerAvailable) return 'Scraping unavailable (Puppeteer failed)';
-  const browser = await puppeteer.launch({
-    headless: 'new',
-    args: ['--no-sandbox'],
-    executablePath: PUPPETEER_EXECUTABLE_PATH
-  });
+  const browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox'] });
   const page = await browser.newPage();
   try {
     await page.goto(`https://x.com/search?q=from%3A%40${username}%20filter%3Areplies&src=typed_query&f=live`, { waitUntil: 'networkidle2' });
@@ -149,11 +136,7 @@ async function checkGhostBan(username) {
 
 async function checkReplyDeboost(username) {
   if (!puppeteerAvailable) return 'Scraping unavailable (Puppeteer failed)';
-  const browser = await puppeteer.launch({
-    headless: 'new',
-    args: ['--no-sandbox'],
-    executablePath: PUPPETEER_EXECUTABLE_PATH
-  });
+  const browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox'] });
   const page = await browser.newPage();
   try {
     await page.goto(`https://x.com/search?q=from%3A%40${username}%20filter%3Areplies&src=typed_query&f=live`, { waitUntil: 'networkidle2' });
