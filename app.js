@@ -8,11 +8,25 @@ const app = express();
 const port = process.env.PORT || 3000;
 const X_BEARER_TOKEN = process.env.X_BEARER_TOKEN;
 const RECAPTCHA_SECRET_KEY = process.env.RECAPTCHA_SECRET_KEY;
+const PUPPETEER_CACHE_DIR = process.env.PUPPETEER_CACHE_DIR;
+const PUPPETEER_EXECUTABLE_PATH = process.env.PUPPETEER_EXECUTABLE_PATH;
 
 app.use(cors());
 app.use(express.json());
 
-// Fetch user details (only requested fields)
+// Check if Puppeteer is functional
+let puppeteerAvailable = true;
+(async () => {
+  try {
+    const browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox'] });
+    await browser.close();
+  } catch (error) {
+    console.error('Puppeteer initialization failed:', error.message);
+    puppeteerAvailable = false;
+  }
+})();
+
+// Fetch user details
 async function fetchUserDetails(username) {
   try {
     const response = await axios.get(
@@ -29,7 +43,7 @@ async function fetchUserDetails(username) {
       avatar: user.profile_image_url || 'https://via.placeholder.com/50',
     };
   } catch (error) {
-    console.error('User details API error:', error);
+    console.error('User details API error:', error.response?.status, error.message);
     return { error: 'Unable to fetch user details' };
   }
 }
@@ -42,13 +56,18 @@ async function checkSearchBanAPI(username) {
     const tweets = response.data.data || [];
     return tweets.length > 0 ? 'No search ban' : 'Search ban detected';
   } catch (error) {
-    console.error('API error (search ban):', error.response?.status);
+    console.error('API error (search ban):', error.response?.status, error.message);
     return null;
   }
 }
 
 async function checkSearchBanScraping(username) {
-  const browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox'] });
+  if (!puppeteerAvailable) return 'Scraping unavailable (Puppeteer failed)';
+  const browser = await puppeteer.launch({
+    headless: 'new',
+    args: ['--no-sandbox'],
+    executablePath: PUPPETEER_EXECUTABLE_PATH
+  });
   const page = await browser.newPage();
   try {
     await page.goto(`https://x.com/${username}`, { waitUntil: 'networkidle2' });
@@ -58,6 +77,7 @@ async function checkSearchBanScraping(username) {
     const tweetsFound = await page.waitForSelector('[data-testid="tweet"]', { timeout: 5000 }).catch(() => null);
     return tweetsFound ? 'No search ban' : 'Search ban detected';
   } catch (error) {
+    console.error('Scraping error (search ban):', error.message);
     return 'Error checking search ban';
   } finally {
     await browser.close();
@@ -71,13 +91,18 @@ async function checkSearchSuggestionBanAPI(username) {
     });
     return response.data.data ? 'No suggestion ban' : 'Suggestion ban detected';
   } catch (error) {
-    console.error('API error (suggestion ban):', error.response?.status);
+    console.error('API error (suggestion ban):', error.response?.status, error.message);
     return null;
   }
 }
 
 async function checkSearchSuggestionBanScraping(username) {
-  const browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox'] });
+  if (!puppeteerAvailable) return 'Scraping unavailable (Puppeteer failed)';
+  const browser = await puppeteer.launch({
+    headless: 'new',
+    args: ['--no-sandbox'],
+    executablePath: PUPPETEER_EXECUTABLE_PATH
+  });
   const page = await browser.newPage();
   try {
     await page.goto('https://x.com/explore', { waitUntil: 'networkidle2' });
@@ -87,6 +112,7 @@ async function checkSearchSuggestionBanScraping(username) {
     const suggestions = await page.evaluate(() => document.body.innerText);
     return suggestions.includes(`@${username}`) ? 'No suggestion ban' : 'Suggestion ban detected';
   } catch (error) {
+    console.error('Scraping error (suggestion ban):', error.message);
     return 'Error checking suggestion ban';
   } finally {
     await browser.close();
@@ -94,7 +120,12 @@ async function checkSearchSuggestionBanScraping(username) {
 }
 
 async function checkGhostBan(username) {
-  const browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox'] });
+  if (!puppeteerAvailable) return 'Scraping unavailable (Puppeteer failed)';
+  const browser = await puppeteer.launch({
+    headless: 'new',
+    args: ['--no-sandbox'],
+    executablePath: PUPPETEER_EXECUTABLE_PATH
+  });
   const page = await browser.newPage();
   try {
     await page.goto(`https://x.com/search?q=from%3A%40${username}%20filter%3Areplies&src=typed_query&f=live`, { waitUntil: 'networkidle2' });
@@ -109,6 +140,7 @@ async function checkGhostBan(username) {
     const visibleReply = await page.$('[data-testid="reply"]') !== null;
     return visibleReply ? 'No ghost ban' : 'Ghost ban detected';
   } catch (error) {
+    console.error('Scraping error (ghost ban):', error.message);
     return 'Error checking ghost ban';
   } finally {
     await browser.close();
@@ -116,7 +148,12 @@ async function checkGhostBan(username) {
 }
 
 async function checkReplyDeboost(username) {
-  const browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox'] });
+  if (!puppeteerAvailable) return 'Scraping unavailable (Puppeteer failed)';
+  const browser = await puppeteer.launch({
+    headless: 'new',
+    args: ['--no-sandbox'],
+    executablePath: PUPPETEER_EXECUTABLE_PATH
+  });
   const page = await browser.newPage();
   try {
     await page.goto(`https://x.com/search?q=from%3A%40${username}%20filter%3Areplies&src=typed_query&f=live`, { waitUntil: 'networkidle2' });
@@ -131,6 +168,7 @@ async function checkReplyDeboost(username) {
     const showMore = await page.evaluate(() => document.body.innerText.includes('Show more replies'));
     return showMore ? 'Reply deboost detected' : 'No reply deboost';
   } catch (error) {
+    console.error('Scraping error (reply deboost):', error.message);
     return 'Error checking reply deboost';
   } finally {
     await browser.close();
@@ -139,7 +177,7 @@ async function checkReplyDeboost(username) {
 
 // Root endpoint
 app.get('/', (req, res) => {
-  res.json({ message: 'X Shadow Ban Checker API is running' });
+  res.json({ message: 'X Shadow Ban Checker API is running', puppeteerAvailable });
 });
 
 // Check endpoint (POST for PHP frontend with reCAPTCHA)
@@ -153,6 +191,7 @@ app.post('/check', async (req, res) => {
     );
     if (!recaptchaVerify.data.success) return res.status(400).json({ error: 'reCAPTCHA verification failed' });
   } catch (error) {
+    console.error('reCAPTCHA error:', error.message);
     return res.status(500).json({ error: 'reCAPTCHA service error' });
   }
 
@@ -184,7 +223,7 @@ app.get('/check/:username', async (req, res) => {
 
 // Health check
 app.get('/health', (req, res) => {
-  res.json({ status: 'healthy', timestamp: new Date().toISOString() });
+  res.json({ status: 'healthy', timestamp: new Date().toISOString(), puppeteerAvailable });
 });
 
 app.listen(port, () => {
