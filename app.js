@@ -8,17 +8,42 @@ const app = express();
 const port = process.env.PORT || 3000;
 const X_BEARER_TOKEN = process.env.X_BEARER_TOKEN;
 const RECAPTCHA_SECRET_KEY = process.env.RECAPTCHA_SECRET_KEY;
-const PUPPETEER_CACHE_DIR = process.env.PUPPETEER_CACHE_DIR || '/app/.cache/puppeteer';
 
 app.use(cors());
 app.use(express.json());
+
+// Puppeteer configuration for different environments
+const getPuppeteerConfig = () => {
+  const isRender = process.env.RENDER === 'true';
+  const config = {
+    headless: 'new',
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-accelerated-2d-canvas',
+      '--no-first-run',
+      '--no-zygote',
+      '--single-process',
+      '--disable-gpu'
+    ]
+  };
+
+  if (isRender) {
+    // For Render environment, use the installed Chrome
+    config.executablePath = '/app/.cache/puppeteer/chrome/linux-*/chrome-linux64/chrome';
+  }
+
+  return config;
+};
 
 // Check if Puppeteer is functional
 let puppeteerAvailable = true;
 (async () => {
   try {
-    const browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox'], cacheDirectory: PUPPETEER_CACHE_DIR });
+    const browser = await puppeteer.launch(getPuppeteerConfig());
     await browser.close();
+    console.log('Puppeteer initialized successfully');
   } catch (error) {
     console.error('Puppeteer initialization failed:', error.message);
     puppeteerAvailable = false;
@@ -62,20 +87,22 @@ async function checkSearchBanAPI(username) {
 
 async function checkSearchBanScraping(username) {
   if (!puppeteerAvailable) return 'Scraping unavailable (Puppeteer failed)';
-  const browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox'], cacheDirectory: PUPPETEER_CACHE_DIR });
-  const page = await browser.newPage();
+  let browser;
   try {
-    await page.goto(`https://x.com/${username}`, { waitUntil: 'networkidle2' });
+    browser = await puppeteer.launch(getPuppeteerConfig());
+    const page = await browser.newPage();
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
+    await page.goto(`https://x.com/${username}`, { waitUntil: 'networkidle2', timeout: 30000 });
     const hasTweets = await page.$('[data-testid="tweet"]') !== null;
     if (!hasTweets) return 'Unable to detect (no recent tweets on profile)';
-    await page.goto(`https://x.com/search?q=from%3A%40${username}&src=typed_query&f=live`, { waitUntil: 'networkidle2' });
-    const tweetsFound = await page.waitForSelector('[data-testid="tweet"]', { timeout: 5000 }).catch(() => null);
+    await page.goto(`https://x.com/search?q=from%3A%40${username}&src=typed_query&f=live`, { waitUntil: 'networkidle2', timeout: 30000 });
+    const tweetsFound = await page.waitForSelector('[data-testid="tweet"]', { timeout: 10000 }).catch(() => null);
     return tweetsFound ? 'No search ban' : 'Search ban detected';
   } catch (error) {
     console.error('Scraping error (search ban):', error.message);
     return 'Error checking search ban';
   } finally {
-    await browser.close();
+    if (browser) await browser.close();
   }
 }
 
@@ -93,10 +120,12 @@ async function checkSearchSuggestionBanAPI(username) {
 
 async function checkSearchSuggestionBanScraping(username) {
   if (!puppeteerAvailable) return 'Scraping unavailable (Puppeteer failed)';
-  const browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox'], cacheDirectory: PUPPETEER_CACHE_DIR });
-  const page = await browser.newPage();
+  let browser;
   try {
-    await page.goto('https://x.com/explore', { waitUntil: 'networkidle2' });
+    browser = await puppeteer.launch(getPuppeteerConfig());
+    const page = await browser.newPage();
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
+    await page.goto('https://x.com/explore', { waitUntil: 'networkidle2', timeout: 30000 });
     await page.click('[data-testid="searchBox"]');
     await page.type('[data-testid="searchBox"]', `@${username}`);
     await page.waitForTimeout(2000);
@@ -106,55 +135,59 @@ async function checkSearchSuggestionBanScraping(username) {
     console.error('Scraping error (suggestion ban):', error.message);
     return 'Error checking suggestion ban';
   } finally {
-    await browser.close();
+    if (browser) await browser.close();
   }
 }
 
 async function checkGhostBan(username) {
   if (!puppeteerAvailable) return 'Scraping unavailable (Puppeteer failed)';
-  const browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox'], cacheDirectory: PUPPETEER_CACHE_DIR });
-  const page = await browser.newPage();
+  let browser;
   try {
-    await page.goto(`https://x.com/search?q=from%3A%40${username}%20filter%3Areplies&src=typed_query&f=live`, { waitUntil: 'networkidle2' });
-    const replyTweet = await page.waitForSelector('[data-testid="tweet"]', { timeout: 5000 }).catch(() => null);
+    browser = await puppeteer.launch(getPuppeteerConfig());
+    const page = await browser.newPage();
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
+    await page.goto(`https://x.com/search?q=from%3A%40${username}%20filter%3Areplies&src=typed_query&f=live`, { waitUntil: 'networkidle2', timeout: 30000 });
+    const replyTweet = await page.waitForSelector('[data-testid="tweet"]', { timeout: 10000 }).catch(() => null);
     if (!replyTweet) return 'Unable to detect (no recent replies)';
     const replyUrl = await page.evaluate(() => {
       const link = document.querySelector('[data-testid="tweet"] a[href^="/"][href*="status"]');
       return link ? 'https://x.com' + link.getAttribute('href') : null;
     });
     if (!replyUrl) return 'Unable to detect (could not extract reply URL)';
-    await page.goto(replyUrl, { waitUntil: 'networkidle2' });
+    await page.goto(replyUrl, { waitUntil: 'networkidle2', timeout: 30000 });
     const visibleReply = await page.$('[data-testid="reply"]') !== null;
     return visibleReply ? 'No ghost ban' : 'Ghost ban detected';
   } catch (error) {
     console.error('Scraping error (ghost ban):', error.message);
     return 'Error checking ghost ban';
   } finally {
-    await browser.close();
+    if (browser) await browser.close();
   }
 }
 
 async function checkReplyDeboost(username) {
   if (!puppeteerAvailable) return 'Scraping unavailable (Puppeteer failed)';
-  const browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox'], cacheDirectory: PUPPETEER_CACHE_DIR });
-  const page = await browser.newPage();
+  let browser;
   try {
-    await page.goto(`https://x.com/search?q=from%3A%40${username}%20filter%3Areplies&src=typed_query&f=live`, { waitUntil: 'networkidle2' });
-    const replyTweet = await page.waitForSelector('[data-testid="tweet"]', { timeout: 5000 }).catch(() => null);
+    browser = await puppeteer.launch(getPuppeteerConfig());
+    const page = await browser.newPage();
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
+    await page.goto(`https://x.com/search?q=from%3A%40${username}%20filter%3Areplies&src=typed_query&f=live`, { waitUntil: 'networkidle2', timeout: 30000 });
+    const replyTweet = await page.waitForSelector('[data-testid="tweet"]', { timeout: 10000 }).catch(() => null);
     if (!replyTweet) return 'Unable to detect (no recent replies)';
     const replyUrl = await page.evaluate(() => {
       const link = document.querySelector('[data-testid="tweet"] a[href^="/"][href*="status"]');
       return link ? 'https://x.com' + link.getAttribute('href') : null;
     });
     if (!replyUrl) return 'Unable to detect (could not extract reply URL)';
-    await page.goto(replyUrl, { waitUntil: 'networkidle2' });
+    await page.goto(replyUrl, { waitUntil: 'networkidle2', timeout: 30000 });
     const showMore = await page.evaluate(() => document.body.innerText.includes('Show more replies'));
     return showMore ? 'Reply deboost detected' : 'No reply deboost';
   } catch (error) {
     console.error('Scraping error (reply deboost):', error.message);
     return 'Error checking reply deboost';
   } finally {
-    await browser.close();
+    if (browser) await browser.close();
   }
 }
 
