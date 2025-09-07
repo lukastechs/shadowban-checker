@@ -1,11 +1,13 @@
 services:
   - type: web
     name: shadowban-checker
-    env: node
-    buildCommand: npm run build
-    startCommand: npm start
+    env: docker
+    buildCommand: echo "Building with Dockerfile"
+    startCommand: node app.js
     envVars:
-      - key: NODE_VERSION
-        value: 20
+      - key: X_BEARER_TOKEN
+        sync: false
+      - key: RECAPTCHA_SECRET_KEY
+        sync: false
       - key: PUPPETEER_CACHE_DIR
-        value: .cache/puppeteer
+        value: /app/.cache/puppeteer
