@@ -1,16 +1,10 @@
-FROM node:20
+FROM node:20-slim
 
-# Set working directory
-WORKDIR /app
-
-# Copy package.json and install dependencies
-COPY package*.json ./
-RUN npm install
-
-# Install Puppeteer dependencies
+# Install Chrome dependencies and fonts
 RUN apt-get update && apt-get install -y \
     ca-certificates \
     fonts-liberation \
+    libappindicator3-1 \
     libasound2 \
     libatk-bridge2.0-0 \
     libatk1.0-0 \
@@ -45,13 +39,25 @@ RUN apt-get update && apt-get install -y \
     lsb-release \
     wget \
     xdg-utils \
- && rm -rf /var/lib/apt/lists/*
+    fonts-noto-color-emoji \
+    fonts-freefont-ttf \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install Chromium for Puppeteer
+# Set working directory
+WORKDIR /app
+
+# Copy package.json and install dependencies
+COPY package*.json ./
+RUN npm install
+
+# Install Chrome via Puppeteer (this will use the correct version)
 RUN npx puppeteer browsers install chrome
 
 # Copy application code
 COPY . .
+
+# Set Puppeteer cache path
+ENV PUPPETEER_CACHE_DIR=/app/.cache/puppeteer
 
 # Expose port
 EXPOSE 3000
