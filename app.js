@@ -2,6 +2,8 @@ const express = require('express');
 const puppeteer = require('puppeteer');
 const axios = require('axios');
 const cors = require('cors');
+const fs = require('fs');
+const path = require('path');
 require('dotenv').config();
 
 const app = express();
@@ -12,9 +14,8 @@ const RECAPTCHA_SECRET_KEY = process.env.RECAPTCHA_SECRET_KEY;
 app.use(cors());
 app.use(express.json());
 
-// Puppeteer configuration for different environments
+// Puppeteer configuration for Render
 const getPuppeteerConfig = () => {
-  const isRender = process.env.RENDER === 'true';
   const config = {
     headless: 'new',
     args: [
@@ -25,13 +26,28 @@ const getPuppeteerConfig = () => {
       '--no-first-run',
       '--no-zygote',
       '--single-process',
-      '--disable-gpu'
+      '--disable-gpu',
+      '--remote-debugging-port=9222'
     ]
   };
 
-  if (isRender) {
-    // For Render environment, use the installed Chrome
-    config.executablePath = '/app/.cache/puppeteer/chrome/linux-*/chrome-linux64/chrome';
+  // Try to find Chrome in the cache directory
+  try {
+    const cacheDir = path.join(process.cwd(), '.cache', 'puppeteer');
+    if (fs.existsSync(cacheDir)) {
+      const chromeDir = fs.readdirSync(cacheDir)
+        .find(dir => dir.includes('chrome') && dir.includes('linux'));
+      
+      if (chromeDir) {
+        const chromePath = path.join(cacheDir, chromeDir, 'chrome-linux64', 'chrome');
+        if (fs.existsSync(chromePath)) {
+          config.executablePath = chromePath;
+          console.log('Found Chrome at:', config.executablePath);
+        }
+      }
+    }
+  } catch (error) {
+    console.log('Could not find custom Chrome path, using default');
   }
 
   return config;
@@ -41,9 +57,11 @@ const getPuppeteerConfig = () => {
 let puppeteerAvailable = true;
 (async () => {
   try {
+    console.log('Initializing Puppeteer...');
     const browser = await puppeteer.launch(getPuppeteerConfig());
+    const version = await browser.version();
+    console.log('Puppeteer initialized successfully with:', version);
     await browser.close();
-    console.log('Puppeteer initialized successfully');
   } catch (error) {
     console.error('Puppeteer initialization failed:', error.message);
     puppeteerAvailable = false;
