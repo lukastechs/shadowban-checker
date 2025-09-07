@@ -50,14 +50,12 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install
 
-# Install Chrome via Puppeteer (this will use the correct version)
-RUN npx puppeteer browsers install chrome
+# Install Chrome via Puppeteer with explicit cache directory
+RUN mkdir -p /app/.cache/puppeteer && \
+    npx puppeteer browsers install chrome --path /app/.cache/puppeteer
 
 # Copy application code
 COPY . .
-
-# Set Puppeteer cache path
-ENV PUPPETEER_CACHE_DIR=/app/.cache/puppeteer
 
 # Expose port
 EXPOSE 3000
