@@ -23,7 +23,7 @@ async def fetch_user_details(username: str):
     async with aiohttp.ClientSession() as session:
         try:
             async with session.get(
-                f"https://api.x.com/2/users/by/username/{username}?user.fields=public_metrics,profile_image_url,location,description,verified,verified_type",
+                f"https://api.x.com/2/users/by/username/{username}?user.fields=public_metrics,profile_image_url,description,name",
                 headers={"Authorization": f"Bearer {X_BEARER_TOKEN}"}
             ) as resp:
                 if resp.status != 200:
