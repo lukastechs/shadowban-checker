@@ -2,10 +2,15 @@ services:
   - type: web
     name: shadowban-checker
     env: node
-    buildCommand: npm run build
-    startCommand: npm start
+    buildCommand: |
+      npm install
+      mkdir -p .cache/puppeteer
+      npx puppeteer browsers install chrome --path .cache/puppeteer
+    startCommand: node app.js
     envVars:
       - key: NODE_VERSION
         value: 20
       - key: RENDER
         value: true
+      - key: PUPPETEER_CACHE_DIR
+        value: .cache/puppeteer
