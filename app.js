@@ -1,5 +1,5 @@
 const express = require('express');
-const puppeteer = require('puppeteer');
+const puppeteer = require('puppeteer-core');
 const axios = require('axios');
 const cors = require('cors');
 const fs = require('fs');
@@ -10,12 +10,13 @@ const app = express();
 const port = process.env.PORT || 3000;
 const X_BEARER_TOKEN = process.env.X_BEARER_TOKEN;
 const RECAPTCHA_SECRET_KEY = process.env.RECAPTCHA_SECRET_KEY;
+const PUPPETEER_EXECUTABLE_PATH = process.env.PUPPETEER_EXECUTABLE_PATH;
 const PUPPETEER_CACHE_DIR = process.env.PUPPETEER_CACHE_DIR || path.join(process.cwd(), '.cache', 'puppeteer');
 
 app.use(cors());
 app.use(express.json());
 
-// Puppeteer configuration for Render/Docker
+// Puppeteer configuration
 const getPuppeteerConfig = () => {
   const config = {
     headless: 'new',
@@ -30,28 +31,27 @@ const getPuppeteerConfig = () => {
       '--disable-gpu',
       '--remote-debugging-port=9222'
     ],
-    cacheDirectory: PUPPETEER_CACHE_DIR
+    executablePath: PUPPETEER_EXECUTABLE_PATH || getExecutablePathFromCache()
   };
-
-  // Try to find Chrome in the cache directory
-  try {
-    const cacheDir = PUPPETEER_CACHE_DIR;
-    if (fs.existsSync(cacheDir)) {
-      const chromeDir = fs.readdirSync(cacheDir)
-        .find(dir => dir.includes('chrome') && dir.includes('linux'));
-      
-      if (chromeDir) {
-        const chromePath = path.join(cacheDir, chromeDir, 'chrome-linux64', 'chrome');
-        if (fs.existsSync(chromePath)) {
-          config.executablePath = chromePath;
-          console.log('Found Chrome at:', config.executablePath);
+  function getExecutablePathFromCache() {
+    try {
+      const cacheDir = PUPPETEER_CACHE_DIR;
+      if (fs.existsSync(cacheDir)) {
+        const chromeDir = fs.readdirSync(cacheDir)
+          .find(dir => dir.includes('chrome') && dir.includes('linux'));
+        if (chromeDir) {
+          const chromePath = path.join(cacheDir, chromeDir, 'chrome-linux64', 'chrome');
+          if (fs.existsSync(chromePath)) {
+            console.log('Found Chrome at:', chromePath);
+            return chromePath;
+          }
         }
       }
+    } catch (error) {
+      console.log('Could not find custom Chrome path, using default');
     }
-  } catch (error) {
-    console.log('Could not find custom Chrome path, using default');
+    return null;
   }
-
   return config;
 };
 
