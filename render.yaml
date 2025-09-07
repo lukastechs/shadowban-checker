@@ -3,11 +3,9 @@ services:
     name: shadowban-checker
     env: docker
     buildCommand: echo "Building with Dockerfile"
-    startCommand: node app.js
+    startCommand: uvicorn main:app --host 0.0.0.0 --port 8000
     envVars:
       - key: X_BEARER_TOKEN
         sync: false
       - key: RECAPTCHA_SECRET_KEY
         sync: false
-      - key: PUPPETEER_CACHE_DIR
-        value: /app/.cache/puppeteer
