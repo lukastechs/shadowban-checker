@@ -10,11 +10,12 @@ const app = express();
 const port = process.env.PORT || 3000;
 const X_BEARER_TOKEN = process.env.X_BEARER_TOKEN;
 const RECAPTCHA_SECRET_KEY = process.env.RECAPTCHA_SECRET_KEY;
+const PUPPETEER_CACHE_DIR = process.env.PUPPETEER_CACHE_DIR || path.join(process.cwd(), '.cache', 'puppeteer');
 
 app.use(cors());
 app.use(express.json());
 
-// Puppeteer configuration for Render
+// Puppeteer configuration for Render/Docker
 const getPuppeteerConfig = () => {
   const config = {
     headless: 'new',
@@ -28,12 +29,13 @@ const getPuppeteerConfig = () => {
       '--single-process',
       '--disable-gpu',
       '--remote-debugging-port=9222'
-    ]
+    ],
+    cacheDirectory: PUPPETEER_CACHE_DIR
   };
 
   // Try to find Chrome in the cache directory
   try {
-    const cacheDir = path.join(process.cwd(), '.cache', 'puppeteer');
+    const cacheDir = PUPPETEER_CACHE_DIR;
     if (fs.existsSync(cacheDir)) {
       const chromeDir = fs.readdirSync(cacheDir)
         .find(dir => dir.includes('chrome') && dir.includes('linux'));
