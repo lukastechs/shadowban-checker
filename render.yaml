@@ -2,7 +2,6 @@ services:
   - type: web
     name: shadowban-checker
     env: docker
-    startCommand: uvicorn main:app --host 0.0.0.0 --port 8000
     envVars:
       - key: X_BEARER_TOKEN
         sync: false
